@@ -1,0 +1,569 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>IUB Examination Department - OMR Dashboard</title>
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700&family=DM+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --green-dark:   #1a6b3c;
+            --green-mid:    #25a05a;
+            --green-light:  #2ecc71;
+            --green-pale:   #eafaf1;
+            --amber:        #f39c12;
+            --red:          #c0392b;
+            --red-light:    #e74c3c;
+            --blue:         #2980b9;
+            --grey-dark:    #2c3e50;
+            --grey-mid:     #7f8c8d;
+            --grey-light:   #ecf0f1;
+            --white:        #ffffff;
+            --shadow:       0 6px 30px rgba(0,0,0,0.10);
+        }
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            font-family: 'DM Sans', sans-serif;
+            background: linear-gradient(135deg, #e8f5e9 0%, #f0f7f4 50%, #e3f0ea 100%);
+            min-height: 100vh;
+            padding: 30px 20px;
+        }
+        .container {
+            max-width: 980px;
+            margin: 0 auto;
+            background: var(--white);
+            border-radius: 18px;
+            box-shadow: var(--shadow);
+            overflow: hidden;
+        }
+        .header {
+            background: linear-gradient(135deg, var(--green-dark) 0%, var(--green-mid) 100%);
+            padding: 28px 36px;
+            display: flex;
+            align-items: center;
+            gap: 18px;
+            position: relative;
+            overflow: hidden;
+        }
+        .header::after {
+            content: '';
+            position: absolute;
+            right: -40px; top: -40px;
+            width: 180px; height: 180px;
+            border-radius: 50%;
+            background: rgba(255,255,255,0.06);
+        }
+        .header-icon {
+            width: 56px; height: 56px;
+            background: rgba(255,255,255,0.18);
+            border-radius: 14px;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 28px;
+            flex-shrink: 0;
+        }
+        .header-text h1 {
+            font-family: 'Playfair Display', serif;
+            color: var(--white);
+            font-size: 22px;
+            letter-spacing: 0.3px;
+        }
+        .header-text p {
+            color: rgba(255,255,255,0.75);
+            font-size: 13px;
+            margin-top: 3px;
+        }
+        .body-wrap { padding: 32px 36px; }
+        .setup-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 22px;
+            margin-bottom: 28px;
+        }
+        .panel {
+            background: var(--green-pale);
+            padding: 22px;
+            border-radius: 12px;
+            border: 1.5px solid #b7e4c7;
+        }
+        .panel h3 {
+            color: var(--green-dark);
+            font-size: 15px;
+            margin-bottom: 8px;
+            font-weight: 600;
+        }
+        .panel p { font-size: 12.5px; color: var(--grey-mid); margin-bottom: 12px; line-height: 1.5; }
+        input[type="file"] {
+            display: block;
+            width: 100%;
+            font-size: 12.5px;
+            margin-bottom: 12px;
+            padding: 7px;
+            border: 1.5px dashed #a8d5b5;
+            border-radius: 7px;
+            background: white;
+            cursor: pointer;
+            color: var(--grey-dark);
+        }
+        input[type="file"]:hover { border-color: var(--green-mid); }
+        #sheetPreviewBox {
+            display: none;
+            margin-top: 12px;
+            border-radius: 8px;
+            overflow: hidden;
+            border: 2px solid #b7e4c7;
+            max-height: 210px;
+        }
+        #sheetPreviewBox img {
+            width: 100%;
+            height: 190px;
+            object-fit: cover;
+            display: block;
+        }
+        #sheetPreviewLabel {
+            background: var(--green-dark);
+            color: white;
+            font-size: 11px;
+            font-weight: 600;
+            padding: 4px 10px;
+            text-align: center;
+            letter-spacing: 0.5px;
+        }
+        .btn {
+            border: none;
+            cursor: pointer;
+            font-weight: 600;
+            font-family: 'DM Sans', sans-serif;
+            transition: all 0.2s;
+            color: white;
+        }
+        .btn-scan {
+            padding: 12px 20px;
+            font-size: 15px;
+            border-radius: 9px;
+            background: linear-gradient(135deg, var(--green-dark), var(--green-mid));
+            width: 100%;
+            box-shadow: 0 4px 14px rgba(37,160,90,0.35);
+            margin-top: 10px;
+        }
+        .btn-scan:hover {
+            background: linear-gradient(135deg, #155c33, #1f9050);
+            transform: translateY(-1px);
+            box-shadow: 0 6px 18px rgba(37,160,90,0.45);
+        }
+        .btn-export {
+            padding: 10px 20px;
+            font-size: 13px;
+            border-radius: 7px;
+            background: linear-gradient(135deg, var(--green-dark), var(--green-mid));
+            box-shadow: 0 3px 10px rgba(37,160,90,0.3);
+        }
+        .btn-export:hover {
+            background: linear-gradient(135deg, #155c33, #1f9050);
+            transform: translateY(-1px);
+        }
+        #loading {
+            display: none;
+            text-align: center;
+            padding: 18px;
+            background: #fffbf0;
+            border: 1.5px solid #f8d48a;
+            border-radius: 10px;
+            color: #b7770d;
+            font-weight: 600;
+            margin: 18px 0;
+            font-size: 15px;
+            animation: pulse 1.6s ease-in-out infinite;
+        }
+        @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.6} }
+        .score-card {
+            border-radius: 14px;
+            padding: 22px 28px;
+            text-align: center;
+            font-family: 'Playfair Display', serif;
+            font-size: 28px;
+            color: white;
+            grid-column: span 2;
+            box-shadow: 0 6px 20px rgba(0,0,0,0.15);
+            transition: background 0.4s;
+            letter-spacing: 0.3px;
+        }
+        .score-high { background: linear-gradient(135deg, #1a6b3c, #27ae60, #2ecc71); box-shadow: 0 6px 20px rgba(46,204,113,0.4); }
+        .score-mid  { background: linear-gradient(135deg, #b7600a, #e67e22, #f39c12); box-shadow: 0 6px 20px rgba(230,126,34,0.4); }
+        .score-low  { background: linear-gradient(135deg, #7b1010, #c0392b, #e74c3c); box-shadow: 0 6px 20px rgba(192,57,43,0.4); }
+        .info-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 14px;
+            margin-bottom: 24px;
+        }
+        .info-card {
+            background: #f8fffe;
+            padding: 14px 16px;
+            border-radius: 10px;
+            border-left: 5px solid var(--green-mid);
+            transition: border-color 0.2s;
+        }
+        .info-card:hover { border-left-color: var(--green-dark); }
+        .info-card label {
+            font-size: 10.5px;
+            color: var(--grey-mid);
+            text-transform: uppercase;
+            font-weight: 600;
+            letter-spacing: 0.7px;
+            display: block;
+            margin-bottom: 5px;
+        }
+        .info-card span {
+            font-size: 15px;
+            color: var(--grey-dark);
+            font-weight: 600;
+        }
+        .stats-bar {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 12px;
+            margin-bottom: 22px;
+        }
+        .stat-box {
+            padding: 16px 12px;
+            border-radius: 10px;
+            text-align: center;
+            color: white;
+            font-weight: 700;
+            box-shadow: 0 3px 10px rgba(0,0,0,0.12);
+        }
+        .stat-correct  { background: linear-gradient(135deg, var(--green-dark), var(--green-light)); }
+        .stat-wrong    { background: linear-gradient(135deg, #7b1010, var(--red)); }
+        .stat-unmarked { background: linear-gradient(135deg, #4a5568, var(--grey-mid)); }
+        .stat-box .stat-num   { font-size: 30px; font-family: 'Playfair Display', serif; }
+        .stat-box .stat-label { font-size: 12px; margin-top: 2px; opacity: 0.9; }
+        .action-bar {
+            display: flex;
+            justify-content: flex-end;
+            margin-bottom: 18px;
+        }
+        .table-title {
+            color: var(--green-dark);
+            font-size: 15px;
+            font-weight: 700;
+            border-bottom: 2.5px solid var(--green-mid);
+            padding-bottom: 8px;
+            margin-bottom: 12px;
+        }
+        table { width: 100%; border-collapse: collapse; }
+        th, td { padding: 10px 12px; text-align: center; border: 1px solid #e0ede6; }
+        th {
+            background: linear-gradient(135deg, var(--green-dark), var(--green-mid));
+            color: white;
+            font-size: 13px;
+            letter-spacing: 0.3px;
+        }
+        tr:nth-child(even) { background: #f4fbf7; }
+        tr:hover { background: #e6f7ee; }
+        .status-badge {
+            padding: 4px 10px;
+            border-radius: 5px;
+            color: white;
+            font-weight: 600;
+            font-size: 12px;
+            display: inline-block;
+        }
+        #resultArea { display: none; }
+        .section-divider {
+            border: none;
+            border-top: 1.5px solid #d4edda;
+            margin: 24px 0;
+        }
+        @media (max-width: 600px) {
+            .setup-grid, .info-grid { grid-template-columns: 1fr; }
+            .score-card { grid-column: span 1; font-size: 20px; }
+            .body-wrap { padding: 20px 16px; }
+        }
+    </style>
+</head>
+<body>
+<div class="container">
+    <div class="header">
+        <div class="header-icon">🎓</div>
+        <div class="header-text">
+            <h1>IUB Examination Department</h1>
+            <p>Bubble Sheet OCR Digital Dashboard — Powered by Gemini AI</p>
+        </div>
+    </div>
+
+    <div class="body-wrap">
+        <div class="setup-grid">
+            <div class="panel">
+                <h3>🔑 Step 1: Upload Answer Key File</h3>
+                <p>60 questions ki Excel (.xlsx / .csv) file upload karein:<br>
+                   <small>Column 1: Question No | Column 2: Correct Answer (A/B/C/D/E)</small></p>
+                <input type="file" id="keyExcelFile" accept=".xlsx, .xls, .csv" onchange="handleKeyUpload(this)">
+                <span id="keyStatus" style="color:#c0392b; font-weight:600; font-size:13px;">⚠️ No Answer Key Loaded</span>
+            </div>
+
+            <div class="panel">
+                <h3>📄 Step 2: Upload Student Bubble Sheet</h3>
+                <p>Student ki hal shuda bubble sheet image upload karein:<br>
+                   <small>Supported: JPG, PNG, JPEG</small></p>
+                <input type="file" id="sheetImage" accept="image/*" onchange="previewSheet(this)">
+                <div id="sheetPreviewBox">
+                    <div id="sheetPreviewLabel">📷 Uploaded Sheet Preview</div>
+                    <img id="sheetPreviewImg" src="" alt="Bubble Sheet Preview">
+                </div>
+                <button class="btn btn-scan" onclick="uploadAndProcess()">🔍 Scan &amp; Compare Answers</button>
+            </div>
+        </div>
+
+        <div id="loading">🔄 Gemini AI bubble sheet scan kar raha hai... Please wait (30–60 seconds)...</div>
+
+        <div id="resultArea">
+            <div class="info-grid">
+                <div class="score-card score-high" id="total_score_card">Total Obtained Marks: 0 / 60</div>
+                <div class="info-card"><label>📛 Applicant Name</label><span id="out_name">-</span></div>
+                <div class="info-card"><label>👤 Father Name</label><span id="out_father">-</span></div>
+                <div class="info-card"><label>🔢 Roll Number</label><span id="out_roll">-</span></div>
+                <div class="info-card"><label>📚 Subject &amp; Semester</label><span id="out_subject">-</span></div>
+                <div class="info-card"><label>📖 Booklet Number</label><span id="out_booklet_number">-</span></div>
+                <div class="info-card"><label>🏷️ Booklet Type</label><span id="out_booklet_type">-</span></div>
+            </div>
+
+            <hr class="section-divider">
+
+            <div class="stats-bar">
+                <div class="stat-box stat-correct">
+                    <div class="stat-num" id="stat_correct">0</div>
+                    <div class="stat-label">✔️ Correct</div>
+                </div>
+                <div class="stat-box stat-wrong">
+                    <div class="stat-num" id="stat_wrong">0</div>
+                    <div class="stat-label">❌ Wrong</div>
+                </div>
+                <div class="stat-box stat-unmarked">
+                    <div class="stat-num" id="stat_unmarked">0</div>
+                    <div class="stat-label">⚪ Unmarked</div>
+                </div>
+            </div>
+
+            <div class="action-bar">
+                <button class="btn btn-export" onclick="exportToExcel()">📥 Export Complete Evaluation to Excel</button>
+            </div>
+
+            <p class="table-title">📋 All 60 Questions Evaluation Details</p>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Question No</th>
+                        <th>Student's Marked Option</th>
+                        <th>Correct Option (Answer Key)</th>
+                        <th>Result Status</th>
+                    </tr>
+                </thead>
+                <tbody id="answersTableBody"></tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<script>
+let currentStudentData = null;
+let uploadedAnswerKey = {};
+let totalCorrectAnswers = 0;
+let totalWrongAnswers = 0;
+let totalUnmarked = 0;
+
+function handleKeyUpload(input) {
+    const file = input.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = function(e) {
+        const data = new Uint8Array(e.target.result);
+        const workbook = XLSX.read(data, {type: 'array'});
+        const worksheet = workbook.Sheets[workbook.SheetNames[0]];
+        const jsonRows = XLSX.utils.sheet_to_json(worksheet, {header: 1});
+        uploadedAnswerKey = {};
+        jsonRows.forEach(row => {
+            if (row.length >= 2) {
+                let qNum = parseInt(row[0].toString().replace(/\D/g, ''));
+                let correctOpt = row[1] ? row[1].toString().trim().toUpperCase() : '';
+                if (!isNaN(qNum) && qNum > 0 && correctOpt)
+                    uploadedAnswerKey[qNum] = correctOpt;
+            }
+        });
+        const count = Object.keys(uploadedAnswerKey).length;
+        const statusSpan = document.getElementById('keyStatus');
+        if (count > 0) {
+            statusSpan.innerHTML = `✔️ Loaded ${count} Questions Key successfully!`;
+            statusSpan.style.color = "#1a6b3c";
+        } else {
+            statusSpan.innerHTML = `❌ Error: Column 1 mein Question No aur Column 2 mein Answer hona chahiye.`;
+            statusSpan.style.color = "#c0392b";
+        }
+    };
+    reader.readAsArrayBuffer(file);
+}
+
+function previewSheet(input) {
+    const file = input.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = function(e) {
+        document.getElementById('sheetPreviewImg').src = e.target.result;
+        document.getElementById('sheetPreviewBox').style.display = 'block';
+    };
+    reader.readAsDataURL(file);
+}
+
+async function uploadAndProcess() {
+    const fileInput = document.getElementById('sheetImage');
+    const loadingEl = document.getElementById('loading');
+    const resultArea = document.getElementById('resultArea');
+
+    if (Object.keys(uploadedAnswerKey).length === 0) {
+        alert("⚠️ Pehle Step 1 mein Answer Key Excel file upload karein!");
+        return;
+    }
+    if (fileInput.files.length === 0) {
+        alert("⚠️ Step 2 mein student ki bubble sheet image select karein!");
+        return;
+    }
+
+    const formData = new FormData();
+    formData.append("file", fileInput.files[0]);
+    loadingEl.style.display = "block";
+    resultArea.style.display = "none";
+
+    try {
+        const response = await fetch("http://127.0.0.1:8000/process-bubble-sheet/", {
+            method: "POST",
+            body: formData
+        });
+        if (!response.ok) {
+            const errData = await response.json();
+            throw new Error(errData.detail || "Backend Error");
+        }
+
+        const result = await response.json();
+        currentStudentData = result.data;
+
+        document.getElementById('out_name').textContent           = currentStudentData.applicant_name  || 'N/A';
+        document.getElementById('out_father').textContent         = currentStudentData.father_name     || 'N/A';
+        document.getElementById('out_roll').textContent           = currentStudentData.roll_number     || 'N/A';
+        document.getElementById('out_subject').textContent        = currentStudentData.subject_name    || 'N/A';
+        document.getElementById('out_booklet_number').textContent = currentStudentData.booklet_number  || 'N/A';
+        document.getElementById('out_booklet_type').textContent   = currentStudentData.booklet_type    || 'N/A';
+
+        let studentAnswersMap = {};
+        if (currentStudentData.answers && currentStudentData.answers.length > 0) {
+            currentStudentData.answers.forEach(ans => {
+                studentAnswersMap[parseInt(ans.question_number)] =
+                    ans.selected_option ? ans.selected_option.toUpperCase() : 'X';
+            });
+        }
+
+        const tableBody = document.getElementById('answersTableBody');
+        tableBody.innerHTML = "";
+        totalCorrectAnswers = 0;
+        totalWrongAnswers = 0;
+        totalUnmarked = 0;
+
+        for (let q = 1; q <= 60; q++) {
+            let studentOpt = studentAnswersMap[q] || 'X';
+            let correctOpt = uploadedAnswerKey[q] || '-';
+            let statusText = "⚪ Unmarked";
+            let bgColor = "#7f8c8d";
+
+            if (correctOpt !== '-') {
+                if (studentOpt === 'X' || studentOpt === 'N/A') {
+                    statusText = "⚪ Unmarked"; bgColor = "#7f8c8d"; totalUnmarked++;
+                } else if (studentOpt === correctOpt) {
+                    totalCorrectAnswers++;
+                    statusText = "✔️ Correct"; bgColor = "#27ae60";
+                } else {
+                    totalWrongAnswers++;
+                    statusText = "❌ Wrong"; bgColor = "#c0392b";
+                }
+            }
+
+            tableBody.innerHTML += `<tr>
+                <td><strong>Q${q}</strong></td>
+                <td style="font-weight:700;font-size:15px;">${studentOpt}</td>
+                <td style="font-weight:700;font-size:15px;color:#1a6b3c;">${correctOpt}</td>
+                <td><span class="status-badge" style="background:${bgColor};">${statusText}</span></td>
+            </tr>`;
+        }
+
+        const scoreCard = document.getElementById('total_score_card');
+        scoreCard.textContent = `Total Obtained Marks: ${totalCorrectAnswers} / 60`;
+        const pct = (totalCorrectAnswers / 60) * 100;
+        scoreCard.className = 'score-card ' + (pct >= 60 ? 'score-high' : pct >= 40 ? 'score-mid' : 'score-low');
+
+        document.getElementById('stat_correct').textContent  = totalCorrectAnswers;
+        document.getElementById('stat_wrong').textContent    = totalWrongAnswers;
+        document.getElementById('stat_unmarked').textContent = totalUnmarked;
+
+        resultArea.style.display = "block";
+        resultArea.scrollIntoView({ behavior: 'smooth' });
+
+    } catch (error) {
+        alert("❌ Error: " + error.message);
+        console.error(error);
+    } finally {
+        loadingEl.style.display = "none";
+    }
+}
+
+function exportToExcel() {
+    if (!currentStudentData) return;
+
+    const ws_data = [
+        ["IUB EXAMINATION DEPARTMENT - STUDENT EVALUATION REPORT","","","","","","","",""],
+        ["","","","","","","","",""],
+        ["STUDENT INFORMATION","","","","","","QUESTION-WISE DETAIL","",""],
+        ["Field","Value","","","","","Question No","Student Answer","Correct Answer"],
+        ["Roll Number",    currentStudentData.roll_number     || 'N/A',"","","","","","",""],
+        ["Student Name",   currentStudentData.applicant_name  || 'N/A',"","","","","","",""],
+        ["Father Name",    currentStudentData.father_name     || 'N/A',"","","","","","",""],
+        ["Subject",        currentStudentData.subject_name    || 'N/A',"","","","","","",""],
+        ["Booklet Number", currentStudentData.booklet_number  || 'N/A',"","","","","","",""],
+        ["Booklet Type",   currentStudentData.booklet_type    || 'N/A',"","","","","","",""],
+        ["Total Correct",  `${totalCorrectAnswers}`,"","","","","","",""],
+        ["Total Wrong",    `${totalWrongAnswers}`,"","","","","","",""],
+        ["Total Unmarked", `${totalUnmarked}`,"","","","","","",""],
+        ["Obtained Marks", `${totalCorrectAnswers} / 60`,"","","","","","",""],
+        ["Percentage",     `${((totalCorrectAnswers/60)*100).toFixed(1)}%`,"","","","","","",""],
+    ];
+
+    let studentAnswersMap = {};
+    if (currentStudentData.answers) {
+        currentStudentData.answers.forEach(ans => {
+            studentAnswersMap[parseInt(ans.question_number)] =
+                ans.selected_option ? ans.selected_option.toUpperCase() : 'N/A';
+        });
+    }
+
+    for (let q = 1; q <= 60; q++) {
+        let studentOpt = studentAnswersMap[q] || 'X';
+        let correctOpt = uploadedAnswerKey[q] || '-';
+        let result = studentOpt === 'X' || studentOpt === 'N/A' ? 'Unmarked' :
+                     studentOpt === correctOpt ? 'Correct' : 'Wrong';
+        let idx = q - 1;
+        if (idx < 11) {
+            ws_data[idx + 3][6] = `Question ${q}`;
+            ws_data[idx + 3][7] = studentOpt;
+            ws_data[idx + 3][8] = correctOpt;
+        } else {
+            ws_data.push(["","","","","","",`Question ${q}`, studentOpt, correctOpt, result]);
+        }
+    }
+
+    const worksheet = XLSX.utils.aoa_to_sheet(ws_data);
+    worksheet['!cols'] = [{wch:18},{wch:40},{wch:3},{wch:3},{wch:3},{wch:3},{wch:15},{wch:15},{wch:15}];
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, "Evaluation Report");
+    const fileName = `IUB_Result_${currentStudentData.roll_number || 'Student'}_${new Date().toLocaleDateString('en-GB').replace(/\//g,'-')}.xlsx`;
+    XLSX.writeFile(workbook, fileName);
+}
+</script>
+</body>
+</html>
